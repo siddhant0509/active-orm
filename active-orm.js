@@ -2,10 +2,10 @@
 
 //import adapter from "adapter";
 
-const adapter = require("./adapter");
+const ormAdapter = require("./orm-adapter");
 const mysql = require("./mysql-orm");
 
-console.log("Adapter" + JSON.stringify(adapter));
+var schemaModels = new Map();
 
 const establishConnection = (options) => {
 	let adapter = options.adapter || "mysql",
@@ -17,26 +17,56 @@ const establishConnection = (options) => {
 	if(!database)
 		throw new Error("Database not provided");
 
-	return connect(options);
+	return ormAdapter.connect(options);
 };
 
+const ormObject = function(tableName){
+	var name = tableName;
 
-//export default activeRecord;
+	var find = options => {
+		let model = schemaModels.get(name);
+		let fields = model.fields;
+		let queryObject = {};
+		Object.keys(options)
+			.filter(key => fields.has(key))
+			.forEach(key => queryObject[key] = options[key]);
+
+		return ormAdapter.find(queryObject);
+	};
+
+	return {
+		find	
+	}
+
+}
+
+const models =  (function(){
+	var assignModel = (name) => {
+		let model = ormObject(name);
+		return model;
+	};
+	var set = (obj, table) => {
+		if(!obj)
+			throw new Error("Object Name Not Provided");
+		table = table || obj;
+		schemaModels.set(obj, {table: table});
+		ormAdapter.schema(table)
+			.then(fields => {
+				let model = schemaModels.get(obj);
+				model["fields"] = new Set(fields);
+			})				
+			.catch(err => console.log(err));
+		return assignModel(obj);
+	};
+	return {
+		set: set
+	}
+})();
+
 
 module.exports = {
-	establishConnection
+	establishConnection,
+	models
 };
 
-
-const connect = function(options){
-	if(!options.adapter)
-		throw new Error("Adapter Not mentioned");
-	
-	switch(options.adapter){
-		case "mysql":
-			return mysql.connect(options);
-		default:
-			throw new Error("Adapter Implementation Not Available. Adapters Available For: " + ADAPTERS);
-	}
-};
 
